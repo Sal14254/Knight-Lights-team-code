@@ -1,0 +1,128 @@
+
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+// 2 port is frontLeft (?) , 0 is frontRight (Correct), 3 is backLeft(Correct), 1 is backRight(?)
+@TeleOp(name = "new_TeleOp", group = "TeleOp")
+public class new_TeleOp extends OpMode {
+
+    private DcMotorEx frontLeft, frontRight, backLeft, backRight;
+
+    private DcMotorEx intakeMotor, outtakeMotor;
+    private double MAX_DRIVE_VEL;
+    private double MAX_INTAKE_VEL;
+    private double REV_INTAKE_VEL;
+    private double OUTTAKE_MED_VEL;
+    private double OUTTAKE_HIGH_VEL;
+
+    private double applyDeadzone(double v, double t) {
+        return Math.abs(v) < t ? 0.0 : v;
+    }
+
+    @Override
+    public void init() {
+
+        frontLeft = hardwareMap.get(DcMotorEx.class, "frontLeft");
+        frontRight = hardwareMap.get(DcMotorEx.class, "frontRight");
+        backLeft = hardwareMap.get(DcMotorEx.class, "backLeft");
+        backRight = hardwareMap.get(DcMotorEx.class, "backRight");
+
+        intakeMotor  = hardwareMap.get(DcMotorEx.class, "intake");
+        outtakeMotor = hardwareMap.get(DcMotorEx.class, "outtake");
+
+        frontLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        frontRight.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        backLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+        backRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        frontLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        frontRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        backLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        backRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        MAX_DRIVE_VEL = (frontLeft.getMotorType().getMaxRPM() / 60.0)
+                * frontLeft.getMotorType().getTicksPerRev();
+        MAX_INTAKE_VEL = (intakeMotor.getMotorType().getMaxRPM() / 60.0)
+                * intakeMotor.getMotorType().getTicksPerRev();
+        REV_INTAKE_VEL = MAX_INTAKE_VEL / 1.5;
+
+
+        double outtakeMaxVel = (outtakeMotor.getMotorType().getMaxRPM() / 60.0)
+                * outtakeMotor.getMotorType().getTicksPerRev();
+
+        OUTTAKE_MED_VEL  = outtakeMaxVel * 0.60;
+        OUTTAKE_HIGH_VEL = outtakeMaxVel * 0.90;
+
+        try {
+            PIDFCoefficients pidf = frontLeft.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+            frontRight.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+            backLeft.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+            backRight.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, pidf);
+        } catch (Exception ignored) {
+        }
+
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+    }
+
+    @Override
+    public void loop() {
+
+        // 1. mecanummmm
+        double drive = applyDeadzone(-gamepad1.left_stick_y, 0.08);
+        double strafe = applyDeadzone(gamepad1.left_stick_x, 0.08);
+        double rotate = applyDeadzone(-gamepad1.right_stick_x, 0.08);
+
+        if (drive == 0 && strafe == 0 && rotate == 0) {
+            frontLeft.setVelocity(0);
+            frontRight.setVelocity(0);
+            backLeft.setVelocity(0);
+            backRight.setVelocity(0);
+        } else {
+            double fl = drive + strafe + rotate;
+            double fr = drive - strafe - rotate;
+            double bl = drive - strafe + rotate;
+            double br = drive + strafe - rotate;
+
+            double max = Math.max(1.0, Math.max(Math.abs(fl),
+                    Math.max(Math.abs(fr), Math.max(Math.abs(bl), Math.abs(br)))));
+
+            fl /= max;
+            fr /= max;
+            bl /= max;
+            br /= max;
+
+            if (gamepad1.y) {
+            } else {
+                frontLeft.setVelocity(fl * MAX_DRIVE_VEL);
+                frontRight.setVelocity(fr * MAX_DRIVE_VEL);
+                backLeft.setVelocity(bl * MAX_DRIVE_VEL);
+                backRight.setVelocity(br * MAX_DRIVE_VEL);
+            }
+        }
+        // in and outtake
+        if (gamepad1.left_trigger > 0.05)
+            intakeMotor.setVelocity(REV_INTAKE_VEL);
+        else if (gamepad1.b)
+            intakeMotor.setVelocity(-REV_INTAKE_VEL);
+        else
+            intakeMotor.setVelocity(0);
+
+        if (gamepad1.y)
+            outtakeMotor.setVelocity(OUTTAKE_MED_VEL);
+        else if (gamepad1.right_trigger > 0.05)
+            outtakeMotor.setVelocity(-OUTTAKE_HIGH_VEL);
+        else
+            outtakeMotor.setVelocity(0);
+
+    }
+}
